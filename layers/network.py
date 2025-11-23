@@ -41,7 +41,7 @@ class NonLinearStream(nn.Module):
         #     nn.Linear(self.d_model * 2, period_len)
         # )
 
-        self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
+        self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
