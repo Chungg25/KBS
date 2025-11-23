@@ -47,7 +47,7 @@ class NonLinearStream(nn.Module):
         # s: [B, seq_len, C]
         s = self.revin_layer(s, 'norm')
         s = self.W(s)
-        /
+        
         s = s.permute(0, 2, 1)  # [B, C, seq_len]
         B, C, _ = s.shape
 
