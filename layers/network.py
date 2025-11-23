@@ -35,18 +35,19 @@ class NonLinearStream(nn.Module):
             nn.Dropout(dropout),
         )
 
-        self.mlp = nn.Sequential(
-            nn.Linear(period_len, self.d_model * 2),
-            nn.GELU(),
-            nn.Linear(self.d_model * 2, period_len)
-        )
+        # self.mlp = nn.Sequential(
+        #     nn.Linear(period_len, self.d_model * 2),
+        #     nn.GELU(),
+        #     nn.Linear(self.d_model * 2, period_len)
+        # )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
-        s = self.W(s)
         s = self.revin_layer(s, 'norm')
+        s = self.W(s)
+        /
         s = s.permute(0, 2, 1)  # [B, C, seq_len]
         B, C, _ = s.shape
 
@@ -56,12 +57,12 @@ class NonLinearStream(nn.Module):
         s = self.ln1(s)
         s = self.act(s)
 
-        s = s.reshape(-1, self.seg_num_x, self.period_len)
-        y = self.mlp(s)
-        y = y.reshape(-1, self.c_in, self.period_len)
+        # s = s.reshape(-1, self.seg_num_x, self.period_len)
+        # y = self.mlp(s)
+        # y = y.reshape(-1, self.c_in, self.period_len)
         # y = y.permute(0, 2, 1)
 
-        y = y.permute(0, 2, 1)  # [B, pred_len, C]
+        y = s.permute(0, 2, 1)  # [B, pred_len, C]
         y = self.revin_layer(y, "denorm")
         y = self.W1(y)
         return y

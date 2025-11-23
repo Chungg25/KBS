@@ -52,6 +52,7 @@ class Exp_Main(Exp_Basic):
     def _select_optimizer(self):
         # model_optim = optim.Adam(self.model.parameters(), lr=self.args.learning_rate)
         model_optim = optim.AdamW(self.model.parameters(), lr=self.args.learning_rate)
+        self.scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(model_optim, patience=5)
         return model_optim
 
     # # MSE criterion
@@ -94,8 +95,8 @@ class Exp_Main(Exp_Basic):
                     self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
                     self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                    pred = outputs*self.ratio
-                    true = batch_y*self.ratio
+                    pred = outputs
+                    true = batch_y
                 else:
                     pred = outputs#.detach().cpu()
                     true = batch_y#.detach().cpu()
@@ -183,16 +184,16 @@ class Exp_Main(Exp_Basic):
 
                 # Arctangent loss with weight decay
                 # self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
-                alpha = 0.02  # Điều chỉnh tốc độ giảm
-                beta = 0.8    # Trọng số tối thiểu
+                alpha = 1 # Điều chỉnh tốc độ giảm
+                beta = 1    # Trọng số tối thiểu
                 self.ratio = np.array([
                     beta + (1 - beta) * np.exp(-alpha * i) 
                     for i in range(self.args.pred_len)
                 ])
                 self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
 
-                outputs = outputs * self.ratio
-                batch_y = batch_y * self.ratio
+                outputs = outputs
+                batch_y = batch_y
 
                 loss = mae_criterion(outputs, batch_y)
                 # loss = 0.5 * mse_criterion(outputs, batch_y) + 0.5 * mae_criterion(outputs, batch_y)
@@ -237,7 +238,9 @@ class Exp_Main(Exp_Basic):
                 print("Early stopping")
                 break
 
-            adjust_learning_rate(model_optim, epoch + 1, self.args)
+            # adjust_learning_rate(model_optim, epoch + 1, self.args)
+            self.scheduler.step(vali_loss)
+            print("learning rate: ", self.scheduler.get_last_lr())
             # adjust_learning_rate_new(model_optim, epoch + 1, self.args)
 
             # print('Alpha:', self.model.decomp.ma.alpha) # Print the learned alpha
