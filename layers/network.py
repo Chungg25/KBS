@@ -41,21 +41,22 @@ class NonLinearStream(nn.Module):
         #     nn.Linear(self.d_model * 2, period_len)
         # )
 
-        self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
+        self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
-        s = self.revin_layer(s, 'norm')
-        s = self.W(s)
         
-        s = s.permute(0, 2, 1)  # [B, C, seq_len]
-        B, C, _ = s.shape
+        s = self.W(s) # [B, seq_len, d_model]
+        s = self.revin_layer(s, 'norm')
+        
+        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
+        B, _, _ = s.shape
 
         # Padding de dam bao output = input
-        h = F.pad(s, (self.pad, 0))
-        s = self.conv1d(h)
-        s = self.ln1(s)
-        s = self.act(s)
+        h = F.pad(s, (self.pad, 0)) # [B, d_model, seq_len + pad]
+        s = self.conv1d(h) # [B, d_model, seq_len]
+        s = self.ln1(s) # [B, d_model, seq_len]
+        s = self.act(s) # [B, d_model, seq_len]
 
         # s = s.reshape(-1, self.seg_num_x, self.period_len)
         # y = self.mlp(s)
@@ -63,9 +64,9 @@ class NonLinearStream(nn.Module):
         # y = y.permute(0, 2, 1)
 
         y = s.permute(0, 2, 1)  # [B, pred_len, C]
-        y = self.W1(y)
-        y = self.revin_layer(y, "denorm")
         # y = self.W1(y)
+        y = self.revin_layer(y, "denorm")
+        y = self.W1(y)
         return y
 
 class LinearStream(nn.Module):
@@ -107,6 +108,8 @@ class Network(nn.Module):
         self.linear = LinearStream(c_in, seq_len, pred_len)
 
     def forward(self, s, t):
+        # s: seasonal [B, seq_len, C]
+        # t: trend [B, seq_len, C]
         y_non_linear = self.non_linear(s)
         y_linear = self.linear(t)
         return y_linear + y_non_linear
