@@ -85,7 +85,7 @@ class NonLinearStream(nn.Module):
         
         s = s.reshape(-1, self.seg_num_x, self.period_len).permute(0, 2, 1) # [B * d_model, seg_num_x, period_len]
         y = self.mlp(s)
-        y = y.permute(0, 2, 1).reshape(B, self.enc_in, self.pred_len)
+        y = y.permute(0, 2, 1).reshape(B, self.d_model, self.pred_len)
         # y = y.permute(0, 2, 1)
 
         y = s.permute(0, 2, 1)  # [B, pred_len, C]
