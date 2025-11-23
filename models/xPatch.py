@@ -27,7 +27,7 @@ class Model(nn.Module):
 
         # Normalization
         self.revin = configs.revin
-        self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
+        # self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
 
         # Moving Average
         self.ma_type = configs.ma_type
@@ -47,8 +47,6 @@ class Model(nn.Module):
         # x: [Batch, Input, Channel]
 
         # Normalization
-        if self.revin:
-            x = self.revin_layer(x, 'norm')
 
         if self.ma_type == 'reg':   # If no decomposition, directly pass the input to the network
             x = self.net(x, x)
@@ -62,7 +60,7 @@ class Model(nn.Module):
             x = self.net(seasonal_init, trend_init)
 
         # Denormalization
-        if self.revin:
-            x = self.revin_layer(x, 'denorm')
+        # if self.revin:
+        #     x = self.revin_layer(x, 'denorm')
 
         return x
