@@ -78,8 +78,11 @@ class NonLinearStream(nn.Module):
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0)) # [B, d_model, seq_len + pad]
         s = self.conv1d(h) # [B, d_model, seq_len]
+        s = s.permute(0, 2, 1) 
         s = self.ln1(s) # [B, d_model, seq_len]
+        s = s.permute(0, 2, 1) 
         s = self.act(s) # [B, d_model, seq_len]
+        
 
         s = s.reshape(-1, self.seg_num_x, self.period_len)
         y = self.mlp(s)
