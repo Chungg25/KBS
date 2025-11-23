@@ -3,6 +3,24 @@ from torch import nn
 from layers.revin import RevIN
 import torch.nn.functional as F
 
+class MixerBlock(nn.Module):
+    def __init__(self, channel, seq_len, d_model, dropout=0.1, expansion=2):
+        super().__init__()
+        self.norm = nn.LayerNorm(seq_len)
+        self.mlp = nn.Sequential(
+            nn.Linear(seq_len, d_model * expansion),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_model * expansion, seq_len)
+        )
+
+    def forward(self, x):
+        # x: [B, C, seq_len]
+        x_norm = self.norm(x) 
+        z = self.mlp(x_norm)  
+        out = x + z        
+        return out
+
 class NonLinearStream(nn.Module):
     def __init__(self, seq_len, pred_len, c_in, period_len, d_model, dropout):
         super().__init__()
@@ -35,6 +53,8 @@ class NonLinearStream(nn.Module):
             nn.Dropout(dropout),
         )
 
+        self.mixer = MixerBlock(channel=self.d_model, seq_len=self.seq_len, d_model=self.d_model, dropout=dropout)
+
         self.mlp = nn.Sequential(
             nn.Linear(period_len, self.d_model * 2),
             nn.GELU(),
@@ -60,7 +80,7 @@ class NonLinearStream(nn.Module):
 
         s = s.reshape(-1, self.seg_num_x, self.period_len)
         y = self.mlp(s)
-        y = y.reshape(-1, self.c_in, self.period_len)
+        y = y.reshape(-1, self.d_model, self.period_len)
         # y = y.permute(0, 2, 1)
 
         y = s.permute(0, 2, 1)  # [B, pred_len, C]
