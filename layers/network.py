@@ -37,7 +37,7 @@ class NonLinearStream(nn.Module):
         self.W1 = nn.Linear(d_model, c_in)
 
         kernel_size = period_len
-        self.pad = kernel_size + 1
+        self.pad = kernel_size - 1
 
         # Temporal Causality
         self.conv1d = nn.Conv1d(
@@ -83,7 +83,6 @@ class NonLinearStream(nn.Module):
         s = s.permute(0, 2, 1) 
         s = self.act(s) # [B, d_model, seq_len]
         
-
         s = s.reshape(-1, self.seg_num_x, self.period_len)
         y = self.mlp(s)
         y = y.reshape(-1, self.d_model, self.period_len)
