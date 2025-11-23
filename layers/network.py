@@ -28,7 +28,7 @@ class NonLinearStream(nn.Module):
             kernel_size=kernel_size,
         )
 
-        self.ln1 = nn.LayerNorm(pred_len)
+        self.ln1 = nn.LayerNorm(seq_len)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
