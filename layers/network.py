@@ -37,7 +37,7 @@ class NonLinearStream(nn.Module):
         self.W1 = nn.Linear(d_model, c_in)
 
         kernel_size = period_len
-        self.pad = kernel_size - 1
+        self.pad = kernel_size + 1
 
         # Temporal Causality
         self.conv1d = nn.Conv1d(
@@ -61,16 +61,19 @@ class NonLinearStream(nn.Module):
             nn.Linear(self.d_model * 2, period_len)
         )
 
-        self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
+        self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
         
-        s = self.W(s) # [B, seq_len, d_model]
         s = self.revin_layer(s, 'norm')
+        s = self.W(s) # [B, seq_len, d_model]
+        # s = self.revin_layer(s, 'norm')
         
         s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
         B, _, _ = s.shape
+
+        s = self.mixer(s) 
 
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0)) # [B, d_model, seq_len + pad]
@@ -84,9 +87,9 @@ class NonLinearStream(nn.Module):
         # y = y.permute(0, 2, 1)
 
         y = s.permute(0, 2, 1)  # [B, pred_len, C]
-        # y = self.W1(y)
-        y = self.revin_layer(y, "denorm")
         y = self.W1(y)
+        y = self.revin_layer(y, "denorm")
+        # y = self.W1(y)
         return y
 
 class LinearStream(nn.Module):
