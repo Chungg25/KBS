@@ -61,6 +61,8 @@ class NonLinearStream(nn.Module):
         print("s shape after conv1d:", s.shape)
         s = self.act(s)
 
+        s = self.W2(s)  # [B, d_model, pred_len]
+
         # s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
 
         # # print("s shape before mlp:", s.shape)
