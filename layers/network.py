@@ -75,7 +75,9 @@ class NonLinearStream(nn.Module):
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0))
         s = self.conv1d(h)
+        s = s.permute(0, 2, 1)  # [B, seq_len, d_model]
         s = self.ln1(s)
+        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
         s = self.act(s)
 
         # Học đặc trưng bên trong từng segment
