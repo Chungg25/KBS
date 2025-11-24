@@ -38,7 +38,7 @@ class NonLinearStream(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(period_len, self.d_model * 2),
             nn.GELU(),
-            nn.Linear(self.d_model * 2, period_len)
+            nn.Linear(self.d_model * 2, pred_len)
         )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
@@ -62,7 +62,7 @@ class NonLinearStream(nn.Module):
         s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
         print("s shape before mlp:", s.shape)
         y = self.mlp(s) # [B * d_model, seg_num_x, period_len]
-        y = y.reshape(-1, self.d_model, self.period_len) # [B, d_model, pred_len]
+        y = y.reshape(B, self.d_model, self.pred_len) # [B, d_model, pred_len]
         print("y shape after mlp:", y.shape)
         # y = y.permute(0, 2, 1)
 
