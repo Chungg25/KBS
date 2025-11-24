@@ -28,54 +28,41 @@ class NonLinearStream(nn.Module):
             kernel_size=kernel_size,
         )
 
-        self.ln1 = nn.LayerNorm(d_model)
+        self.ln1 = nn.LayerNorm(pred_len)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
             nn.Dropout(dropout),
         )
 
-        self.mlp = nn.Sequential(
-            nn.Linear(period_len, self.d_model * 2),
-            nn.GELU(),
-            nn.Linear(self.d_model * 2, period_len),
-        )
-
-        self.W2 = nn.Linear(seq_len, pred_len)
+        # self.mlp = nn.Sequential(
+        #     nn.Linear(period_len, self.d_model * 2),
+        #     nn.GELU(),
+        #     nn.Linear(self.d_model * 2, period_len)
+        # )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
-        s = self.W(s) # [B, seq_len, d_model]
+        s = self.W(s)
         s = self.revin_layer(s, 'norm')
-        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
-        B, _, _ = s.shape
+        s = s.permute(0, 2, 1)  # [B, C, seq_len]
+        B, C, _ = s.shape
 
         # Padding de dam bao output = input
-        h = F.pad(s, (self.pad, 0))  # [B, d_model, seq_len + pad]
-        s = self.conv1d(h) # [B, d_model, seq_len]
-        s = s.permute(0, 2, 1)  # [B, seq_len, d_model]
+        h = F.pad(s, (self.pad, 0))
+        s = self.conv1d(h)
         s = self.ln1(s)
-        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
-        print("s shape after conv1d:", s.shape)
         s = self.act(s)
 
-        s = self.W2(s)  # [B, d_model, pred_len]
-
-        # s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
-
-        # # print("s shape before mlp:", s.shape)
-        # y = self.mlp(s) # [B * d_model, seg_num_x, period_len]
-        # y = y.permute(0, 2, 1)  # [B * d_model, period_len, seg_num_x]
-        # y = y.reshape(B, self.d_model, self.period_len * self.seg_num_x) # [B, d_model, period_len]
-        # # print("y shape after mlp:", y.shape)
-        # y = self.W2(y)  # [B, d_model, pred_len]
+        # s = s.reshape(-1, self.seg_num_x, self.period_len)
+        # y = self.mlp(s)
+        # y = y.reshape(-1, self.c_in, self.period_len)
         # y = y.permute(0, 2, 1)
 
-        s = s.permute(0, 2, 1)  # [B, pred_len, d_model]
-        print("y shape before denorm:", s.shape)
-        y = self.revin_layer(s, "denorm")
+        y = s.permute(0, 2, 1)  # [B, pred_len, C]
+        y = self.revin_layer(y, "denorm")
         y = self.W1(y)
         return y
 
