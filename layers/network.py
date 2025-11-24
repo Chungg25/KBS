@@ -3,24 +3,6 @@ from torch import nn
 from layers.revin import RevIN
 import torch.nn.functional as F
 
-# class MixerBlock(nn.Module):
-#     def __init__(self, channel, seq_len, d_model, dropout=0.1, expansion=2):
-#         super().__init__()
-#         self.norm = nn.LayerNorm(seq_len)
-#         self.mlp = nn.Sequential(
-#             nn.Linear(seq_len, d_model * expansion),
-#             nn.GELU(),
-#             nn.Dropout(dropout),
-#             nn.Linear(d_model * expansion, seq_len)
-#         )
-
-#     def forward(self, x):
-#         # x: [B, C, seq_len]
-#         x_norm = self.norm(x) 
-#         z = self.mlp(x_norm)  
-#         out = x + z        
-#         return out
-
 class NonLinearStream(nn.Module):
     def __init__(self, seq_len, pred_len, c_in, period_len, d_model, dropout):
         super().__init__()
@@ -46,52 +28,42 @@ class NonLinearStream(nn.Module):
             kernel_size=kernel_size,
         )
 
-        self.ln1 = nn.LayerNorm(d_model)
+        self.ln1 = nn.LayerNorm(pred_len)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
             nn.Dropout(dropout),
         )
 
-        # self.mixer = MixerBlock(channel=self.d_model, seq_len=self.seq_len, d_model=self.d_model, dropout=dropout)
-
         self.mlp = nn.Sequential(
-            nn.Linear(self.seg_num_x, self.d_model * 2),
+            nn.Linear(period_len, self.d_model * 2),
             nn.GELU(),
-            nn.Linear(self.d_model * 2, self.seg_num_y)
+            nn.Linear(self.d_model * 2, period_len)
         )
 
-        self.revin_layer = RevIN(c_in,affine=True,subtract_last=False)
+        self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
     def forward(self, s):
         # s: [B, seq_len, C]
-        
-        s = self.revin_layer(s, 'norm')
         s = self.W(s) # [B, seq_len, d_model]
-        # s = self.revin_layer(s, 'norm')
-        
+        s = self.revin_layer(s, 'norm')
         s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
         B, _, _ = s.shape
 
-        # s = self.mixer(s) 
-
         # Padding de dam bao output = input
-        h = F.pad(s, (self.pad, 0)) # [B, d_model, seq_len + pad]
+        h = F.pad(s, (self.pad, 0))  # [B, d_model, seq_len + pad]
         s = self.conv1d(h) # [B, d_model, seq_len]
-        s = s.permute(0, 2, 1)
-        s = self.ln1(s) # [B, seq_len, d_model]
-        s = s.permute(0, 2, 1) 
-        s = self.act(s) # [B, d_model, seq_len]
-        
-        s = s.reshape(-1, self.seg_num_x, self.period_len).permute(0, 2, 1) # [B * d_model, period_len, seg_num_x]
-        s = self.mlp(s)
-        y = s.permute(0, 2, 1).reshape(B, self.d_model, self.pred_len)
+        s = self.ln1(s)
+        s = self.act(s)
+
+        s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
+        y = self.mlp(s) # [B * d_model, seg_num_x, period_len]
+        y = y.reshape(-1, self.c_in, self.period_len) # [B, d_model, pred_len]
         # y = y.permute(0, 2, 1)
 
-        y = y.permute(0, 2, 1)  # [B, pred_len, C]
-        y = self.W1(y)
+        y = y.permute(0, 2, 1)  # [B, pred_len, d_model]
         y = self.revin_layer(y, "denorm")
-        # y = self.W1(y)
+        y = self.W1(y)
         return y
 
 class LinearStream(nn.Module):
@@ -133,8 +105,6 @@ class Network(nn.Module):
         self.linear = LinearStream(c_in, seq_len, pred_len)
 
     def forward(self, s, t):
-        # s: seasonal [B, seq_len, C]
-        # t: trend [B, seq_len, C]
         y_non_linear = self.non_linear(s)
         y_linear = self.linear(t)
         return y_linear + y_non_linear
