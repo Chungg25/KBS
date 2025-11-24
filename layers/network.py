@@ -71,9 +71,9 @@ class NonLinearStream(nn.Module):
         # y = self.W2(y)  # [B, d_model, pred_len]
         # y = y.permute(0, 2, 1)
 
-        y = y.permute(0, 2, 1)  # [B, pred_len, d_model]
+        s = s.permute(0, 2, 1)  # [B, pred_len, d_model]
         # print("y shape before denorm:", y.shape)
-        y = self.revin_layer(y, "denorm")
+        y = self.revin_layer(s, "denorm")
         y = self.W1(y)
         return y
 
