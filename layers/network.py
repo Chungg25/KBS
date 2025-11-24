@@ -37,11 +37,11 @@ class NonLinearStream(nn.Module):
             nn.Dropout(dropout),
         )
 
-        self.mlp = nn.Sequential(
-            nn.Linear(period_len, self.d_model * 2),
-            nn.GELU(),
-            nn.Linear(self.d_model * 2, period_len)
-        )
+        # self.mlp = nn.Sequential(
+        #     nn.Linear(period_len, self.d_model * 2),
+        #     nn.GELU(),
+        #     nn.Linear(self.d_model * 2, period_len)
+        # )
         # MLP cho tương tác giữa các segment
         self.segment_mlp = nn.Sequential(
             nn.Linear(self.seg_num_x, self.seg_num_x * 2),
@@ -50,6 +50,20 @@ class NonLinearStream(nn.Module):
         )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
+
+        # Depthwise và Pointwise causal cho segment
+        self.segment_depthwise = nn.Conv1d(
+            in_channels=period_len,
+            out_channels=period_len,
+            kernel_size=3,
+            padding=2,
+            groups=period_len
+        )
+        self.segment_pointwise = nn.Conv1d(
+            in_channels=period_len,
+            out_channels=period_len,
+            kernel_size=1
+        )
 
     def forward(self, s):
         # s: [B, seq_len, C]
@@ -69,11 +83,16 @@ class NonLinearStream(nn.Module):
         s = self.mlp(s)
         # [B, seg_num_x, period_len]
 
-        # Học tương tác giữa các segment
+        # Áp dụng causal depthwise và pointwise cho segment
         s = s.permute(0, 2, 1)  # [B, period_len, seg_num_x]
+        s = F.pad(s, (2, 0))  # padding phía trước cho causal conv (kernel_size=3, padding=2)
+        s = self.segment_depthwise(s)
+        s = self.segment_pointwise(s)
+        s = s.permute(0, 2, 1)  # [B, seg_num_x, period_len]
+
+        # Học tương tác giữa các segment
         s = self.segment_mlp(s)
-        # [B, period_len, seg_num_y]
-        s = s.permute(0, 2, 1)  # [B, seg_num_y, period_len]
+        # [B, seg_num_y, period_len]
         s = s.reshape(B, -1, self.d_model)  # [B, pred_len, d_model]
 
         y = self.revin_layer(s, "denorm")
