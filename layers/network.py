@@ -58,7 +58,7 @@ class NonLinearStream(nn.Module):
         s = s.permute(0, 2, 1)  # [B, seq_len, d_model]
         s = self.ln1(s)
         s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
-        # print("s shape after conv1d:", s.shape)
+        print("s shape after conv1d:", s.shape)
         s = self.act(s)
 
         # s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
@@ -72,7 +72,7 @@ class NonLinearStream(nn.Module):
         # y = y.permute(0, 2, 1)
 
         s = s.permute(0, 2, 1)  # [B, pred_len, d_model]
-        # print("y shape before denorm:", y.shape)
+        print("y shape before denorm:", y.shape)
         y = self.revin_layer(s, "denorm")
         y = self.W1(y)
         return y
