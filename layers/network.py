@@ -28,7 +28,7 @@ class NonLinearStream(nn.Module):
             kernel_size=kernel_size,
         )
 
-        self.ln1 = nn.LayerNorm(pred_len)
+        self.ln1 = nn.LayerNorm(d_model)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
@@ -53,7 +53,9 @@ class NonLinearStream(nn.Module):
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0))  # [B, d_model, seq_len + pad]
         s = self.conv1d(h) # [B, d_model, seq_len]
+        s = s.permute(0, 2, 1)  # [B, seq_len, d_model]
         s = self.ln1(s)
+        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
         s = self.act(s)
 
         s = s.reshape(-1, self.seg_num_x, self.period_len) # [B * d_model, seg_num_x, period_len]
