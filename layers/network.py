@@ -26,20 +26,28 @@ class NonLinearStream(nn.Module):
             in_channels=self.d_model,
             out_channels=self.d_model,
             kernel_size=kernel_size,
+            groups=self.d_model,
         )
 
-        self.ln1 = nn.LayerNorm(pred_len)
+        self.ln1 = nn.LayerNorm(d_model)
+        
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
             nn.Dropout(dropout),
         )
 
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(period_len, self.d_model * 2),
-        #     nn.GELU(),
-        #     nn.Linear(self.d_model * 2, period_len)
-        # )
+        self.mlp = nn.Sequential(
+            nn.Linear(period_len, self.d_model * 2),
+            nn.GELU(),
+            nn.Linear(self.d_model * 2, period_len)
+        )
+        # MLP cho tương tác giữa các segment
+        self.segment_mlp = nn.Sequential(
+            nn.Linear(self.seg_num_x, self.seg_num_x * 2),
+            nn.GELU(),
+            nn.Linear(self.seg_num_x * 2, self.seg_num_y)
+        )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
@@ -56,13 +64,19 @@ class NonLinearStream(nn.Module):
         s = self.ln1(s)
         s = self.act(s)
 
-        # s = s.reshape(-1, self.seg_num_x, self.period_len)
-        # y = self.mlp(s)
-        # y = y.reshape(-1, self.c_in, self.period_len)
-        # y = y.permute(0, 2, 1)
+        # Học đặc trưng bên trong từng segment
+        s = s.reshape(B, self.seg_num_x, self.period_len)
+        s = self.mlp(s)
+        # [B, seg_num_x, period_len]
 
-        y = s.permute(0, 2, 1)  # [B, pred_len, C]
-        y = self.revin_layer(y, "denorm")
+        # Học tương tác giữa các segment
+        s = s.permute(0, 2, 1)  # [B, period_len, seg_num_x]
+        s = self.segment_mlp(s)
+        # [B, period_len, seg_num_y]
+        s = s.permute(0, 2, 1)  # [B, seg_num_y, period_len]
+        s = s.reshape(B, -1, self.d_model)  # [B, pred_len, d_model]
+
+        y = self.revin_layer(s, "denorm")
         y = self.W1(y)
         return y
 
