@@ -26,11 +26,9 @@ class NonLinearStream(nn.Module):
             in_channels=self.d_model,
             out_channels=self.d_model,
             kernel_size=kernel_size,
-            groups=self.d_model,
         )
 
-        self.ln1 = nn.LayerNorm(d_model)
-        
+        self.ln1 = nn.LayerNorm(pred_len)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
@@ -42,28 +40,8 @@ class NonLinearStream(nn.Module):
         #     nn.GELU(),
         #     nn.Linear(self.d_model * 2, period_len)
         # )
-        # MLP cho tương tác giữa các segment
-        self.segment_mlp = nn.Sequential(
-            nn.Linear(self.seg_num_x, self.seg_num_x * 2),
-            nn.GELU(),
-            nn.Linear(self.seg_num_x * 2, self.seg_num_y)
-        )
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
-
-        # Depthwise và Pointwise causal cho segment
-        self.segment_depthwise = nn.Conv1d(
-            in_channels=period_len,
-            out_channels=period_len,
-            kernel_size=3,
-            padding=2,
-            groups=period_len
-        )
-        self.segment_pointwise = nn.Conv1d(
-            in_channels=period_len,
-            out_channels=period_len,
-            kernel_size=1
-        )
 
     def forward(self, s):
         # s: [B, seq_len, C]
@@ -75,29 +53,16 @@ class NonLinearStream(nn.Module):
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0))
         s = self.conv1d(h)
-        s = s.permute(0, 2, 1)  # [B, seq_len, d_model]
         s = self.ln1(s)
-        s = s.permute(0, 2, 1)  # [B, d_model, seq_len]
         s = self.act(s)
 
-        # Học đặc trưng bên trong từng segment
-        s = s.reshape(B, self.seg_num_x, self.period_len)
-        s = self.mlp(s)
-        # [B, seg_num_x, period_len]
+        # s = s.reshape(-1, self.seg_num_x, self.period_len)
+        # y = self.mlp(s)
+        # y = y.reshape(-1, self.c_in, self.period_len)
+        # y = y.permute(0, 2, 1)
 
-        # Áp dụng causal depthwise và pointwise cho segment
-        s = s.permute(0, 2, 1)  # [B, period_len, seg_num_x]
-        s = F.pad(s, (2, 0))  # padding phía trước cho causal conv (kernel_size=3, padding=2)
-        s = self.segment_depthwise(s)
-        s = self.segment_pointwise(s)
-        s = s.permute(0, 2, 1)  # [B, seg_num_x, period_len]
-
-        # Học tương tác giữa các segment
-        s = self.segment_mlp(s)
-        # [B, seg_num_y, period_len]
-        s = s.reshape(B, -1, self.d_model)  # [B, pred_len, d_model]
-
-        y = self.revin_layer(s, "denorm")
+        y = s.permute(0, 2, 1)  # [B, pred_len, C]
+        y = self.revin_layer(y, "denorm")
         y = self.W1(y)
         return y
 
