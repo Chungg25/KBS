@@ -26,20 +26,31 @@ class NonLinearStream(nn.Module):
             in_channels=self.d_model,
             out_channels=self.d_model,
             kernel_size=kernel_size,
+            groups=self.d_model
         )
 
-        self.ln1 = nn.LayerNorm(pred_len)
+        self.ln1 = nn.LayerNorm(d_model)
         # self.act = nn.GELU()
         self.act = nn.Sequential(
             nn.LeakyReLU(negative_slope=0.01),
             nn.Dropout(dropout),
         )
 
-        # self.mlp = nn.Sequential(
-        #     nn.Linear(period_len, self.d_model * 2),
-        #     nn.GELU(),
-        #     nn.Linear(self.d_model * 2, period_len)
-        # )
+        expansion = 2
+        self.mlp = nn.Sequential(
+            nn.Linear(seq_len, d_model * expansion),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_model * expansion, seq_len)
+        )
+
+        self.segment_mlp = nn.Sequential(
+            nn.Linear(self.seg_num_x, self.d_model * 2),
+            nn.GELU(),
+            nn.Linear(self.d_model * 2, self.seg_num_y)
+        )
+
+        self.w2 = nn.Linear(seq_len, pred_len)
 
         self.revin_layer = RevIN(d_model,affine=True,subtract_last=False)
 
@@ -53,15 +64,22 @@ class NonLinearStream(nn.Module):
         # Padding de dam bao output = input
         h = F.pad(s, (self.pad, 0))
         s = self.conv1d(h)
-        s = self.ln1(s)
+        # s = self.ln1(s)
         s = self.act(s)
 
-        # s = s.reshape(-1, self.seg_num_x, self.period_len)
-        # y = self.mlp(s)
-        # y = y.reshape(-1, self.c_in, self.period_len)
-        # y = y.permute(0, 2, 1)
+        y = s.permute(0, 2, 1)  # [B, d_model, seq_len]
+        y = self.ln1(y)
+        y = y.reshape(B * self.d_model, self.seq_len)  # [B*d_model, seq_len]
+        y = self.mlp(y)                               # [B*d_model, seq_len]
+        y = y.reshape(B, self.d_model, self.seq_len)   # [B, d_model, seq_len]
 
-        y = s.permute(0, 2, 1)  # [B, pred_len, C]
+        y = y.reshape(-1, self.seg_num_x, self.period_len).permute(0, 2, 1) # [B*d_model, period_len, seg_num_x]
+        y = self.segment_mlp(y)                             # [B*d_model, period_len, seg_num_y]
+        y = y.permute(0, 2, 1).reshape(B, self.d_model, self.pred_len)  # [B, d_model, pred_len]
+        # y = y.permute(0, 2, 1)  # [B, pred_len, d_model]
+        # y = self.w2(y)          # [B, d_model, pred_len]
+
+        y = y.permute(0, 2, 1)  # [B, pred_len, C]
         y = self.revin_layer(y, "denorm")
         y = self.W1(y)
         return y
