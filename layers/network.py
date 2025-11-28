@@ -32,7 +32,7 @@ class NonLinearStream(nn.Module):
         #     nn.Sigmoid()
         # )
 
-        self.conv1 = nn.Conv1d(self.d_model, self.d_model, 1)
+        self.conv1 = nn.Conv1d(self.d_model, self.d_model, 1, bias=True)
         self.sig = nn.Sigmoid()
 
         self.act = nn.GELU()
@@ -57,8 +57,8 @@ class NonLinearStream(nn.Module):
         s = self.conv1d(h)
         # gate_val = self.gate(s)
 
-        s = self.conv1(s)
-        gate_val = self.sig(s)
+        # s = self.conv1(s)
+        gate_val = self.sig(self.conv1(s))
         s = s * gate_val
         s = self.act(s)
 
