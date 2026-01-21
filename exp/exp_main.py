@@ -184,13 +184,7 @@ class Exp_Main(Exp_Basic):
 
                 # Arctangent loss with weight decay
                 # self.ratio = np.array([-1 * math.atan(i+1) + math.pi/4 + 1 for i in range(self.args.pred_len)])
-                alpha = 1 # Điều chỉnh tốc độ giảm
-                beta = 1    # Trọng số tối thiểu
-                self.ratio = np.array([
-                    beta + (1 - beta) * np.exp(-alpha * i) 
-                    for i in range(self.args.pred_len)
-                ])
-                self.ratio = torch.tensor(self.ratio).unsqueeze(-1).to('cuda')
+                
 
                 outputs = outputs
                 batch_y = batch_y
