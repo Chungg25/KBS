@@ -13,6 +13,7 @@ class ChannelModule(nn.Module):
         self.c_in = c_in
         self.period_len = period_len
         self.d_model = d_model
+        self.dropout = dropout
 
         self.W = nn.Conv1d(d_model, d_model * 2, 1)
         self.W2 = nn.Conv1d(d_model * 2, c_in, 1)
@@ -48,18 +49,18 @@ class ChannelModule(nn.Module):
         s = s * gate_val
         s = self.act(s)
 
-        s = F.dropout(s, 0.3, self.training)
+        s = F.dropout(s, self.dropout, self.training)
 
         s = self.global_conv(s)
 
         s = self.W(s)
         s = self.act(s)
         
-        s = F.dropout(s, 0.3, self.training)
+        s = F.dropout(s, self.dropout, self.training)
         s = self.W2(s)
         s = self.act(s)
 
-        s = F.dropout(s, 0.3, self.training)
+        s = F.dropout(s, self.dropout, self.training)
 
         return s
 
