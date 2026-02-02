@@ -63,47 +63,21 @@ class ChannelModule(nn.Module):
         return s
 
 class LocalTemporal(nn.Module):
-    def __init__(self, kernel_size, dilation=24):
+    def __init__(self, kernel_size, dilation=1):
         super().__init__()
-
         self.kernel_size = kernel_size
         self.dilation = dilation
-
-        self.pad = (kernel_size - 1) * dilation
-
         self.conv = nn.Conv1d(
             in_channels=1,
             out_channels=1,
             kernel_size=kernel_size,
             dilation=dilation,
-            padding=0,      
+            padding= (kernel_size - 1) // 2 * dilation,
             groups=1
         )
 
     def forward(self, x):
-        # x: [N, 1, L]
-
-        h = F.pad(x, (self.pad, 0))
-
-        return self.conv(h)
-
-
-# class LocalTemporal(nn.Module):
-#     def __init__(self, kernel_size, dilation=1):
-#         super().__init__()
-#         self.kernel_size = kernel_size
-#         self.dilation = dilation
-#         self.conv = nn.Conv1d(
-#             in_channels=1,
-#             out_channels=1,
-#             kernel_size=kernel_size,
-#             dilation=dilation,
-#             padding= (kernel_size - 1) // 2 * dilation,
-#             groups=1
-#         )
-
-#     def forward(self, x):
-#         return self.conv(x)
+        return self.conv(x)
 
 class NonLinearStream(nn.Module):
     def __init__(self, seq_len, pred_len, c_in, period_len, d_model, dropout):
@@ -168,18 +142,18 @@ class NonLinearStream(nn.Module):
         y = self.revin_layer(y, "denorm")
         return y
     
+    
 
 class LinearStream(nn.Module):
-    def __init__(self, c_in, seq_len, pred_len, drop_out_linear):
+    def __init__(self, c_in, seq_len, pred_len, kernel_size=2):
         super().__init__()
         self.seq_len = seq_len
         self.pred_len = pred_len
         self.c_in = c_in
 
-        kernel_size= 2
-
         self.revin_layer = RevIN(c_in, affine=True)
 
+        # ===== Local modeling (depthwise conv) =====
         self.pad = kernel_size - 1
         self.local_conv = nn.Conv1d(
             in_channels=c_in,
@@ -194,16 +168,18 @@ class LinearStream(nn.Module):
             nn.LayerNorm(seq_len),
             nn.Linear(seq_len, hidden*2),
             nn.GELU(),
-            # nn.Dropout(0.5),
+            # nn.Dropout(0.3),
             nn.Linear(hidden*2, seq_len),
             nn.LayerNorm(seq_len),
         )
 
+
+        # ===== Prediction head =====
         # self.proj = nn.Linear(seq_len, pred_len)
-        self.proj1 = nn.Linear(seq_len, pred_len// 2)
-        self.ln = nn.LayerNorm(pred_len // 2)
-        self.drop = nn.Dropout(drop_out_linear)
-        self.proj2 = nn.Linear(pred_len// 2, pred_len)
+        self.proj1 = nn.Linear(seq_len, pred_len//2)
+        self.ln = nn.LayerNorm(pred_len //2)
+        self.drop = nn.Dropout(0.3)
+        self.proj2 = nn.Linear(pred_len//2, pred_len)
 
     def forward(self, t):
         # t: [B, seq_len, C]
@@ -233,10 +209,10 @@ class LinearStream(nn.Module):
 
     
 class Network(nn.Module):
-    def __init__(self, seq_len, pred_len, c_in, period_len, d_model, dropout=0.1, drop_out_linear=0.1):
+    def __init__(self, seq_len, pred_len, c_in, period_len, d_model, dropout=0.1):
         super().__init__()
         self.non_linear = NonLinearStream(seq_len, pred_len, c_in, period_len, d_model, dropout)
-        self.linear = LinearStream(c_in, seq_len, pred_len, drop_out_linear)
+        self.linear = LinearStream(c_in, seq_len, pred_len)
 
     def forward(self, s, t):
         y_non_linear = self.non_linear(s)
