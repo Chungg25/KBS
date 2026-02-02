@@ -24,6 +24,7 @@ parser.add_argument('--model', type=str, required=True, default='xPatch',
                     help='model name, options: [xPatch]')
 parser.add_argument('--period_len', type=int, default=24, help='period length')
 parser.add_argument('--d_model', type=int, default=128, help='dimension of model')
+parser.add_argument('--drop_out_linear', type=float, default=0.1, help='drop out of linear stream')
 # data loader
 parser.add_argument('--data', type=str, required=True, default='ETTh1', help='dataset type')
 parser.add_argument('--root_path', type=str, default='./dataset', help='root path of the data file')

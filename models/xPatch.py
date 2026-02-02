@@ -19,6 +19,7 @@ class Model(nn.Module):
         c_in = configs.enc_in       # input channels
         d_model = configs.d_model    # dimension of model
         period_len = configs.period_len  # period length
+        drop_out_linear = configs.drop_out_linear
 
         # Patching
         patch_len = configs.patch_len
@@ -37,7 +38,7 @@ class Model(nn.Module):
         dropout = configs.dropout
 
         self.decomp = DECOMP(self.ma_type, alpha, beta, period_len)
-        self.net = Network(seq_len, pred_len, c_in, period_len, d_model, dropout)
+        self.net = Network(seq_len, pred_len, c_in, period_len, d_model, dropout, drop_out_linear)
         # self.net = Network(seq_len, pred_len, c_in, period_len, d_model)
         # self.net = Network(seq_len, pred_len, patch_len, stride, padding_patch)
         # self.net_mlp = NetworkMLP(seq_len, pred_len) # For ablation study with MLP-only stream
